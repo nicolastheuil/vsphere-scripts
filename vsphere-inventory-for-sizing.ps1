@@ -25,7 +25,7 @@ catch [Exception]{
 
 Write-Host "Connected to" $VIServer -ForegroundColor Green 
  
-$allvms = @()
+$allvms = New-Object System.Collections.ArrayList
 Write-Host "Getting VMs from inventory ... " -ForegroundColor Gray -NoNewLine
 $vms = Get-VM | Select Name, @{N="Cluster";E={Get-Cluster -VM $_}}, VMHost, PowerState, NumCpu, MemoryGB, UsedSpaceGB, ProvisionedSpaceGB
 Write-Host ($vms).Count " VMs found" -ForegroundColor Green  
@@ -43,34 +43,39 @@ $vmstat.UsedSpaceGB = $vm.UsedSpaceGB
 $vmstat.ProvisionedSpaceGB = $vm.ProvisionedSpaceGB
 
 try {
-	$statcpu = Get-Stat -Entity ($vm.Name)-start (get-date).AddDays(-$statsdays) -Finish (Get-Date)-MaxSamples 10000 -stat cpu.usage.average -IntervalMins $statsinterval -ErrorAction Stop
-}
-catch [Exception]{
-	Write-Host "no CPU stats ... " -ForegroundColor Red -NoNewLine
-}
+    $stats = Get-Stat -Entity ($vm.Name) -start (get-date).AddDays(-$statsdays) -Finish (Get-Date) -MaxSamples 10000 -stat "cpu.usage.average", "mem.usage.average" -IntervalMins $statsinterval -ErrorAction Stop
+    $statcpu = $stats | Where-Object {$_.MetricId -eq "cpu.usage.average"}
+    $statmem = $stats | Where-Object {$_.MetricId -eq "mem.usage.average"}
 
-try {
-	$statmem = Get-Stat -Entity ($vm.Name)-start (get-date).AddDays(-$statsdays) -Finish (Get-Date)-MaxSamples 10000 -stat mem.usage.average -IntervalMins $statsinterval -ErrorAction Stop
+    if (-not $statcpu) {
+        Write-Host "no CPU stats ... " -ForegroundColor Red -NoNewLine
+    }
+    if (-not $statmem) {
+        Write-Host "no Memory stats ... " -ForegroundColor Red -NoNewLine
+    }
 }
 catch [Exception]{
-	Write-Host "no Memory stats ... " -ForegroundColor Red -NoNewLine
+    Write-Host "no CPU or Memory stats ... " -ForegroundColor Red -NoNewLine
 }
 
 $cpu = 0
-$cpu = $statcpu | Measure-Object -Property value -Average -Maximum -Minimum
-$vmstat.CPUMax = [math]::Round($cpu.Maximum,3)
-$vmstat.CPUAvg = [math]::Round($cpu.Average,3)
-$vmstat.CPUMin = [math]::Round($cpu.Minimum,3)
+if ($statcpu) {
+    $cpu = $statcpu | Measure-Object -Property value -Average -Maximum -Minimum
+    $vmstat.CPUMax = [math]::Round($cpu.Maximum,3)
+    $vmstat.CPUAvg = [math]::Round($cpu.Average,3)
+    $vmstat.CPUMin = [math]::Round($cpu.Minimum,3)
+}
 
 $mem = 0
-$mem = $statmem | Measure-Object -Property value -Average -Maximum -Minimum
-$vmstat.MemMax = [math]::Round($mem.Maximum,3)
-$vmstat.vRAMMax = $vmstat.vRAM*($vmstat.MemMax/100) 
+if ($statmem) {
+    $mem = $statmem | Measure-Object -Property value -Average -Maximum -Minimum
+    $vmstat.MemMax = [math]::Round($mem.Maximum,3)
+    $vmstat.vRAMMax = $vmstat.vRAM*($vmstat.MemMax/100)
 $vmstat.MemAvg = [math]::Round($mem.Average,3)
 $vmstat.vRAMAvg = $vmstat.vRAM*($vmstat.MemAvg/100) 
 $vmstat.MemMin = [math]::Round($mem.Minimum,3)
 $vmstat.vRAMMin = $vmstat.vRAM*($vmstat.MemMin/100) 
-$allvms += $vmstat
+$null = $allvms.Add($vmstat)
 Write-Host " Done" -ForegroundColor Green
 }
 $allvms | Export-CSV "C:\VMs.csv" -noTypeInformation
