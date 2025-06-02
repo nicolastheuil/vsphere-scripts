@@ -50,7 +50,7 @@ To use this script, the following prerequisites must be met:
 3.  **Navigate to Script Directory:** Change to the directory where you saved the script.
     *   Example: `cd C:\Scripts`
 4.  **Execute Script:** Run the script.
-    *   Example: `.+sphere-inventory-for-sizing.ps1`
+    *   Example: `./vsphere-inventory-for-sizing.ps1`
 5.  **Output:** The script will display progress messages in the console as it connects to vCenter, retrieves VM information, and gathers statistics. Upon completion, it will generate a CSV file named `VMs.csv` in the `C:\` directory (by default). This file contains the collected inventory and performance data.
 
     *Note: The output path `C:\VMs.csv` is currently hardcoded in the script. You may wish to modify this path within the script if needed.*
